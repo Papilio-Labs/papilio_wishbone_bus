@@ -1,0 +1,17 @@
+{
+  "name": "papilio_wishbone_bus",
+  "version": "0.1.0",
+  "keywords": ["wishbone", "spi", "papilio"],
+  "description": "Papilio Wishbone Bus SPI helper using papilio_spi_slave (8-bit transfers).",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Papilio-Labs/papilio_wishbone_bus.git"
+  },
+  "authors": [
+    { "name": "GadgetFactory" }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"],
+  "export": ["src/*.h", "src/*.cpp", "gateware/*"]
+}
