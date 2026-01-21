@@ -1,6 +1,6 @@
 {
   "name": "papilio_wishbone_bus",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "keywords": ["wishbone", "spi", "papilio"],
   "description": "Papilio Wishbone Bus library with 32-bit SPI-to-Wishbone bridge supporting multi-width transfers, burst mode, and FIFO buffering.",
   "repository": {
