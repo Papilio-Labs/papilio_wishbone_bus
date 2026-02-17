@@ -42,7 +42,38 @@ COUNT specifies the number of words (1-65535).
 - 24-bit: address += 3
 - 32-bit: address += 4
 
+## Address Map (Slot Tier)
+
+The slot tier covers `0x0000–0x1FFF`. Each slot gets 256 bytes.
+
+| Slot | Address Range       | Firmware constant example    |
+|------|---------------------|------------------------------|
+| 0    | `0x0000–0x00FF`     | `PWB_SLOT0_BASE = 0x0000`    |
+| 1    | `0x0100–0x01FF`     | `PWB_SLOT1_BASE = 0x0100`    |
+| 2    | `0x0200–0x02FF`     | `PWB_SLOT2_BASE = 0x0200`    |
+| …    | …                   | …                            |
+| N    | `N×0x100–N×0x100+0xFF` | `PWB_SLOTN_BASE = N*0x100` |
+
+Extended tier: `0x2000–0xFFFF` (single slave, e.g., BRAM at `0x2000`).
+
+Large tier: `0x010000–0xFFFFFF` — **stubbed**, returns `0xDEADBEEF` (Phase 3, not yet implemented).
+
 ## Gateware Modules
+
+### pwb_wb_system.v
+High-level system wrapper — **recommended for end users**. Encapsulates reset generator, SPI bridge, and interconnect. Parameters: `NUM_SLOTS` (default 8). Exposes slot and extended tier ports; use with `pwb_bus_wires.vh` macros.
+
+### pwb_wb_interconnect.v
+Three-tier address decoder/router. Use directly for advanced integrations. Slot tier active (0x00_0000–0x00_1FFF), extended tier active (0x00_2000–0x00_FFFF), large tier stubbed. Address bits `[12:8]` select the slot.
+
+### pwb_bus_wires.vh
+Include file that declares all slot/extended wire arrays and four macros:
+- `` `SLOT_CONNECT(N, MODULE, INST)`` — wire slot N to peripheral
+- `` `EXT_CONNECT(MODULE, INST)`` — wire extended tier to peripheral (one slave only)
+- `` `PWB_SLOT_PORTS`` — port list for `pwb_wb_system` slot connections
+- `` `PWB_EXT_PORTS`` — port list for `pwb_wb_system` extended tier connection
+
+**Expanding NUM_SLOTS:** Change `localparam NUM_SLOTS` in `top.v` and update the matching ESP32 firmware constant. No other wiring changes needed — the interconnect generate loop adapts automatically.
 
 ### pwb_spi_wb_bridge.v
 Multi-width SPI-to-Wishbone bridge with FIFO buffering for burst transfers.
@@ -119,9 +150,9 @@ Parameterized Wishbone register block for testing.
 - Standard Wishbone classic slave interface
 - Synchronous reset clears all registers to RESET_VALUE
 
-### Legacy Modules
-- `simple_spi_wb_bridge.v`: 8-bit only bridge (deprecated, use pwb_spi_wb_bridge)
-- `wb_address_decoder*.v`: Address fanout helpers for multiple Wishbone slaves
+### Legacy Modules (deprecated)
+- `simple_spi_wb_bridge.v`: 8-bit only bridge (use `pwb_spi_wb_bridge` instead)
+- `wb_address_decoder*.v`: Flat address decoders (superseded by `pwb_wb_interconnect`)
 
 ## Firmware API
 
@@ -183,9 +214,9 @@ No fixed pin assignments - configure in top-level constraints:
 
 ### Simulation Tests
 Location: `tests/sim/`
+- `tb_pwb_wb_interconnect.v`: Interconnect routing (24 tests — slot routing, isolation, OOB, extended tier, large stub)
 - `tb_pwb_multi_width.v`: Multi-width bridge validation
 - Generates VCD files for waveform analysis
-- Tests all command types (0x00-0x0F)
 
 Run simulations:
 ```powershell
@@ -263,12 +294,26 @@ void setup() {
 }
 ```
 
-### Connect Multiple Wishbone Slaves
-Use `wb_address_decoder` modules to fan out to multiple slaves:
+### Connect Slot Peripherals
 ```verilog
-// Slave 0: 0x0000-0x0FFF (registers)
-// Slave 1: 0x1000-0x1FFF (BRAM)
-// Add address decoding logic or use decoder modules
+// In top.v, after `include "pwb_bus_wires.vh"
+`SLOT_CONNECT(0, wb_register_block #(.ADDR_WIDTH(4), .DATA_WIDTH(8)), slot0_reg);
+`SLOT_CONNECT(1, wb_rgb_led,                                            slot1_led);
+assign rgb_data = slot1_led.extra_output;  // extra I/O wired separately
+```
+
+### Connect Extended Tier Peripheral (BRAM)
+```verilog
+// Uncomment ,`PWB_EXT_PORTS in pwb_wb_system port list, then:
+`EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram);
+// Access from ESP32: wb.wishboneRead32(0x2000);
+```
+
+### Swap a Peripheral
+```verilog
+// Change the module name and instance name — no other wiring needed:
+// Before: `SLOT_CONNECT(2, wb_old_device, slot2_old);
+`SLOT_CONNECT(2, wb_new_device, slot2_new);
 ```
 
 ## Notes for AI Assistants

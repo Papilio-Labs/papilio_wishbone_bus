@@ -40,7 +40,7 @@ def run_testbench(testbench, oss_cad_path):
     
     # Determine required source files based on testbench
     gateware_dir = Path("../../gateware")
-    wb_reg_dir = Path("../../../papilio_wb_register/gateware")
+    wb_reg_dir = Path("../../../papilio_wishbone_register/gateware")
     spi_slave_dir = Path("../../../papilio_spi_slave/gateware")
     
     sources = [testbench]
@@ -56,6 +56,10 @@ def run_testbench(testbench, oss_cad_path):
         sources.extend([
             str(gateware_dir / "simple_spi_wb_bridge.v"),
             str(wb_reg_dir / "wb_register_block.v")
+        ])
+    elif "pwb_wb_interconnect" in testbench:
+        sources.extend([
+            str(gateware_dir / "pwb_wb_interconnect.v"),
         ])
     
     # Compile
