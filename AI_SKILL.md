@@ -45,38 +45,51 @@ COUNT specifies the number of words (1-65535).
 ## Gateware Modules
 
 ### pwb_spi_wb_bridge.v
-Multi-width SPI-to-Wishbone bridge with dynamic width handling.
+Multi-width SPI-to-Wishbone bridge with FIFO buffering for burst transfers.
 
 **Parameters:**
-- `ADDR_WIDTH` (default 16): Wishbone address width
-- `MAX_DATA_WIDTH` (default 32): Maximum data width (must be ≥ all transfer widths)
+- `FIFO_DEPTH` (default 64): FIFO depth in 32-bit words
+- `ALMOST_FULL_THRESHOLD` (default 4): Words remaining before almost_full flag
+- `ALMOST_EMPTY_THRESHOLD` (default 4): Words remaining before almost_empty flag
 
 **Ports:**
 ```verilog
 module pwb_spi_wb_bridge #(
-    parameter ADDR_WIDTH = 16,
-    parameter MAX_DATA_WIDTH = 32
+    parameter FIFO_DEPTH = 64,
+    parameter ALMOST_FULL_THRESHOLD = 4,
+    parameter ALMOST_EMPTY_THRESHOLD = 4
 ) (
     input wire clk,
     input wire rst,
     
     // SPI Interface
-    input wire spi_sck,
-    input wire spi_cs_n,
+    input wire spi_sclk,
     input wire spi_mosi,
     output wire spi_miso,
+    input wire spi_cs_n,
     
-    // Wishbone Master Interface
-    output reg [ADDR_WIDTH-1:0] wb_adr_o,
-    output reg [MAX_DATA_WIDTH-1:0] wb_dat_o,
-    input wire [MAX_DATA_WIDTH-1:0] wb_dat_i,
+    // Wishbone Master Interface (16-bit address, 32-bit data)
+    output reg [15:0] wb_adr_o,
+    output reg [31:0] wb_dat_o,
+    input wire [31:0] wb_dat_i,
+    output reg [3:0] wb_sel_o,      // Byte select for narrow transfers
     output reg wb_we_o,
     output reg wb_cyc_o,
     output reg wb_stb_o,
     input wire wb_ack_i,
-    output reg [2:0] wb_data_width  // 0=8-bit, 1=16-bit, 2=24-bit, 3=32-bit
+    
+    // FIFO Status Flags (for firmware monitoring)
+    output wire fifo_rx_almost_full,
+    output wire fifo_tx_almost_empty
 );
 ```
+
+**Features:**
+- Single-word and burst transfer modes
+- 8/16/24/32-bit data widths
+- FIFO buffering for high-throughput burst transfers
+- Automatic address increment in burst mode
+- Byte lane selection via wb_sel_o
 
 **State Machine:**
 1. IDLE: Waiting for CS assertion
@@ -87,9 +100,12 @@ module pwb_spi_wb_bridge #(
 6. SEND_DATA: Transmit read data (read operations)
 
 **Timing:**
-- Uses `papilio_spi_slave` core patterns
-- Wishbone transactions complete during CS active time
+- SPI Mode 1: CPOL=0, CPHA=1
+- Wishbone transactions can be decoupled via FIFOs in burst mode
 - Supports back-to-back burst transfers with auto-increment
+
+**Dependencies:**
+- Requires `fifo_sync.v` from `papilio_spi_slave` library
 
 ### pwb_register_block.v
 Parameterized Wishbone register block for testing.
@@ -158,7 +174,7 @@ uint32_t wishboneRead(uint32_t address);                // Calls wishboneRead32
 ## Pin Assignments
 
 No fixed pin assignments - configure in top-level constraints:
-- `spi_sck`: SPI clock to FPGA
+- `spi_sclk`: SPI clock to FPGA
 - `spi_cs_n`: Chip select (active low)
 - `spi_mosi`: Master Out (ESP32), Slave In (FPGA)
 - `spi_miso`: Master In (ESP32), Slave Out (FPGA)
@@ -199,14 +215,15 @@ python run_all_tests.py  # Runs both sim and hw tests
 ### Instantiate Bridge in Top Module
 ```verilog
 pwb_spi_wb_bridge #(
-    .ADDR_WIDTH(16),
-    .MAX_DATA_WIDTH(32)
+    .FIFO_DEPTH(64),
+    .ALMOST_FULL_THRESHOLD(4),
+    .ALMOST_EMPTY_THRESHOLD(4)
 ) bridge_inst (
     .clk(sys_clk),
     .rst(reset),
     
     // SPI pins (connect to top-level ports)
-    .spi_sck(spi_sck),
+    .spi_sclk(spi_sclk),
     .spi_cs_n(spi_cs_n),
     .spi_mosi(spi_mosi),
     .spi_miso(spi_miso),
@@ -215,11 +232,15 @@ pwb_spi_wb_bridge #(
     .wb_adr_o(wb_adr),
     .wb_dat_o(wb_dat_m2s),
     .wb_dat_i(wb_dat_s2m),
+    .wb_sel_o(wb_sel),
     .wb_we_o(wb_we),
     .wb_cyc_o(wb_cyc),
     .wb_stb_o(wb_stb),
     .wb_ack_i(wb_ack),
-    .wb_data_width(wb_width)
+    
+    // FIFO status (optional monitoring)
+    .fifo_rx_almost_full(),
+    .fifo_tx_almost_empty()
 );
 ```
 

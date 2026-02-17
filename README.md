@@ -1,12 +1,17 @@
 # Papilio Wishbone Bus — `libs/papilio_wishbone_bus`
 
-This library provides a multi-width SPI-based master for talking to an FPGA-side Wishbone bridge, using the validated `papilio_spi_slave` core. Supports 8-bit, 16-bit, and 32-bit data transfers.
+This library provides a multi-width SPI-based master for talking to an FPGA-side Wishbone bridge, using the validated `papilio_spi_slave` core. Supports 8-bit, 16-bit, 24-bit, and 32-bit data transfers with burst mode.
+
+## Dependencies
+
+**FPGA Gateware**: 
+- Requires `fifo_sync.v` from `papilio_spi_slave` library for FIFO buffering
+- Add both libraries to `platformio.ini` under `[env:fpga]` lib_deps
 
 ## Files
 - `src/WishboneSPI.h` — Public header with API and protocol constants.
 - `src/WishboneSPI.cpp` — PapilioSPI-based implementation (SPI Mode 1, MSB-first, <=4 MHz).
-- `gateware/pwb_spi_wb_bridge.v` — Multi-width SPI-to-Wishbone bridge (dynamically handles 8/16/32-bit based on command byte).
-- `gateware/pwb_register_block.v` — Parameterized Wishbone register block for testing.
+- `gateware/pwb_spi_wb_bridge.v` — Multi-width SPI-to-Wishbone bridge with FIFO buffering (requires fifo_sync.v).
 - `gateware/simple_spi_wb_bridge.v` — Legacy 8-bit only bridge (deprecated).
 - `gateware/wb_address_decoder*.v` — Wishbone address fanout helpers.
 - `tests/sim/` — Simulation testbenches with VCD for multi-width bridge testing.
