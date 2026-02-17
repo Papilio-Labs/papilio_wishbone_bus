@@ -91,9 +91,9 @@ module pwb_wb_interconnect #(
     // -------------------------------------------------------------------------
     // Tier decode
     // -------------------------------------------------------------------------
-    // Phase 1: Only slot tier active
+    // Phase 2: Slot + Extended tiers active
     wire in_slot_tier  = (wb_adr_i[23:13] == 11'b0);  // 0x00_0000 - 0x00_1FFF
-    wire in_ext_tier   = 1'b0;  // Phase 2: (wb_adr_i[23:16] == 8'b0) && wb_adr_i[15:13] != 3'b0
+    wire in_ext_tier   = (wb_adr_i[23:16] == 8'b0) && (wb_adr_i[15:13] != 3'b0);  // 0x00_2000 - 0x00_FFFF
     wire in_large_tier = 1'b0;  // Phase 3: wb_adr_i[23:16] != 8'b0
 
     // -------------------------------------------------------------------------
@@ -146,24 +146,25 @@ module pwb_wb_interconnect #(
     end
 
     // -------------------------------------------------------------------------
-    // Phase 2/3 tier stubs (return ACK + 0xDEADBEEF)
+    // Extended tier signal routing (Phase 2 — active)
     // -------------------------------------------------------------------------
-    assign ext_adr_o   = 16'h0000;
-    assign ext_dat_o   = 32'h00000000;
-    assign ext_sel_o   = 4'b0000;
-    assign ext_we_o    = 1'b0;
-    assign ext_cyc_o   = 1'b0;
-    assign ext_stb_o   = 1'b0;
-    
-    assign large_adr_o = 24'h000000;
+    assign ext_adr_o   = wb_adr_i[15:0];
+    assign ext_dat_o   = wb_dat_i;
+    assign ext_sel_o   = wb_sel_i;
+    assign ext_we_o    = wb_we_i;
+    assign ext_cyc_o   = wb_cyc_i & in_ext_tier;
+    assign ext_stb_o   = wb_stb_i & in_ext_tier;
+
+    // -------------------------------------------------------------------------
+    // Large tier stubs (Phase 3 — return ACK + 0xDEADBEEF)
+    // -------------------------------------------------------------------------
     assign large_dat_o = 32'h00000000;
     assign large_sel_o = 4'b0000;
     assign large_we_o  = 1'b0;
     assign large_cyc_o = 1'b0;
     assign large_stb_o = 1'b0;
 
-    // Stubbed tiers always ACK with distinctive data
-    wire ext_stub_ack   = in_ext_tier & wb_cyc_i & wb_stb_i;
+    // Stubbed large tier always ACKs with distinctive data
     wire large_stub_ack = in_large_tier & wb_cyc_i & wb_stb_i;
 
     // -------------------------------------------------------------------------
@@ -179,9 +180,9 @@ module pwb_wb_interconnect #(
             wb_dat_o = 32'hDEADBEEF;
             wb_ack_o = wb_cyc_i & wb_stb_i;  // Immediate ACK
         end else if (in_ext_tier) begin
-            // Extended tier stub (Phase 2)
-            wb_dat_o = 32'hDEADBEEF;
-            wb_ack_o = ext_stub_ack;
+            // Extended tier (Phase 2 — routed to ext_* ports)
+            wb_dat_o = ext_dat_i;
+            wb_ack_o = ext_ack_i;
         end else if (in_large_tier) begin
             // Large tier stub (Phase 3)
             wb_dat_o = 32'hDEADBEEF;

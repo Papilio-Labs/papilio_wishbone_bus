@@ -5,14 +5,13 @@
 //   - Three-tier Wishbone interconnect (pwb_wb_interconnect)
 //
 // End users instantiate this module once and connect peripherals via
-// SLOT_CONNECT macro from pwb_bus_wires.vh.
-//
-// For advanced/dev projects that need custom routing (e.g., BRAM at
-// 0x8000 outside the interconnect), use pwb_wb_interconnect directly.
+// SLOT_CONNECT macro from pwb_bus_wires.vh.  For peripherals that need
+// more address space (e.g., BRAM), wire the ext_* ports to the slave.
 //
 // Usage:
 //   wire clk = clk_27mhz;
 //   localparam NUM_SLOTS = 8;
+//   wire rst;
 //   `include "pwb_bus_wires.vh"
 //
 //   pwb_wb_system #(.NUM_SLOTS(NUM_SLOTS)) bus (
@@ -22,7 +21,9 @@
 //       .spi_mosi(spi_mosi),
 //       .spi_miso(spi_miso),
 //       .spi_cs_n(spi_cs_n),
-//       `PWB_SLOT_PORTS
+//       `PWB_SLOT_PORTS,
+//       .ext_adr_o(ext_adr),   // Optional: extended tier for BRAM etc.
+//       ...
 //   );
 //
 //   `SLOT_CONNECT(0, wb_register_block #(.DATA_WIDTH(8)), slot0_sys);
