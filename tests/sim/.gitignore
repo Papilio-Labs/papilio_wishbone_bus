@@ -1,0 +1,4 @@
+# Simulation build artifacts
+*.vcd
+*.vvp
+__pycache__/
