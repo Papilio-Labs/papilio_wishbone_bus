@@ -295,25 +295,29 @@ void setup() {
 ```
 
 ### Connect Slot Peripherals
+Macros leave the port list open — close with `);`. Extra I/O goes before the close.
 ```verilog
-// In top.v, after `include "pwb_bus_wires.vh"
-`SLOT_CONNECT(0, wb_register_block #(.ADDR_WIDTH(4), .DATA_WIDTH(8)), slot0_reg);
-`SLOT_CONNECT(1, wb_rgb_led,                                            slot1_led);
-assign rgb_data = slot1_led.extra_output;  // extra I/O wired separately
+// Simple peripheral
+`SLOT_CONNECT(0, wb_register_block #(.ADDR_WIDTH(4), .DATA_WIDTH(8)), slot0_reg));
+
+// Peripheral with extra I/O
+`SLOT_CONNECT(1, wb_simple_rgb_led, slot1_led),
+    .led_out(rgb_data)
+);
 ```
 
 ### Connect Extended Tier Peripheral (BRAM)
 ```verilog
 // Uncomment ,`PWB_EXT_PORTS in pwb_wb_system port list, then:
-`EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram);
+`EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram));
 // Access from ESP32: wb.wishboneRead32(0x2000);
 ```
 
 ### Swap a Peripheral
 ```verilog
 // Change the module name and instance name — no other wiring needed:
-// Before: `SLOT_CONNECT(2, wb_old_device, slot2_old);
-`SLOT_CONNECT(2, wb_new_device, slot2_new);
+// Before: `SLOT_CONNECT(2, wb_old_device, slot2_old));
+`SLOT_CONNECT(2, wb_new_device, slot2_new));
 ```
 
 ## Notes for AI Assistants

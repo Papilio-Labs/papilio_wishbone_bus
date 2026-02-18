@@ -32,17 +32,19 @@ wire [NUM_SLOTS-1:0]     slot_ack;
 // =========================================================================
 // Usage: `SLOT_CONNECT(slot_number, module_with_params, instance_name)
 //
-// Wires all 8 standard Wishbone signals between the interconnect's
-// flattened arrays and a peripheral module. Includes clk and rst.
+// Wires clk, rst, and all 8 standard Wishbone signals between the
+// interconnect's flattened arrays and a peripheral module.
 //
-// Examples:
-//   `SLOT_CONNECT(0, wb_register_block #(.DATA_WIDTH(8)),  slot0_sys);
-//   `SLOT_CONNECT(1, wb_rgb_led,                           slot1_rgb);
+// The macro leaves the port list OPEN — the caller closes with );
+// This allows extra I/O ports to be added before closing.
 //
-// For peripherals with extra I/O (e.g., LED output), wire those
-// separately after the macro call:
-//   `SLOT_CONNECT(5, wb_rgb_led, slot5_rgb);
-//   assign rgb_led_out = slot5_rgb_extra_output;
+// Simple peripheral (no extra ports):
+//   `SLOT_CONNECT(0, wb_register_block #(.DATA_WIDTH(8)), slot0_sys);
+//
+// Peripheral with extra I/O:
+//   `SLOT_CONNECT(5, wb_simple_rgb_led, slot5_rgb),
+//       .led_out(led_out)
+//   );
 //
 `define SLOT_CONNECT(N, MODULE, INST) \
     MODULE INST ( \
@@ -55,8 +57,7 @@ wire [NUM_SLOTS-1:0]     slot_ack;
         .wb_we_i(slot_we[(N)]), \
         .wb_cyc_i(slot_cyc[(N)]), \
         .wb_stb_i(slot_stb[(N)]), \
-        .wb_ack_o(slot_ack[(N)]) \
-    )
+        .wb_ack_o(slot_ack[(N)])
 
 // =========================================================================
 // Extended Tier Wishbone interface wires
@@ -77,16 +78,19 @@ wire        ext_ack;
 // =========================================================================
 // Usage: `EXT_CONNECT(module_with_params, instance_name)
 //
-// Wires all 8 standard Wishbone signals between the extended tier
-// port and a peripheral module. Includes clk and rst.
+// Wires clk, rst, and all 8 standard Wishbone signals between the
+// extended tier port and a peripheral module.
 // Only one peripheral can be connected to the extended tier.
 //
-// Examples:
+// The macro leaves the port list OPEN — the caller closes with );
+//
+// Simple peripheral (no extra ports):
 //   `EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram);
 //
-// For peripherals with extra I/O, wire those separately:
-//   `EXT_CONNECT(my_peripheral, ext_dev);
-//   assign extra_out = ext_dev_extra_output;
+// Peripheral with extra I/O:
+//   `EXT_CONNECT(my_peripheral, ext_dev),
+//       .extra_out(some_wire)
+//   );
 //
 `define EXT_CONNECT(MODULE, INST) \
     MODULE INST ( \
@@ -99,8 +103,7 @@ wire        ext_ack;
         .wb_we_i(ext_we), \
         .wb_cyc_i(ext_cyc), \
         .wb_stb_i(ext_stb), \
-        .wb_ack_o(ext_ack) \
-    )
+        .wb_ack_o(ext_ack)
 
 // =========================================================================
 // PWB_SLOT_PORTS Macro - System module port wiring

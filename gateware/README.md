@@ -115,29 +115,37 @@ wire rst;               // driven by pwb_wb_system.rst_o (or your own generator)
 
 | Macro              | Usage                                           | Description                                    |
 |--------------------|-------------------------------------------------|------------------------------------------------|
-| `` `SLOT_CONNECT`` | `` `SLOT_CONNECT(N, MODULE #(.P(V)), INST)``    | Wire slot N to a peripheral                    |
-| `` `EXT_CONNECT``  | `` `EXT_CONNECT(MODULE #(.P(V)), INST)``        | Wire extended tier to a peripheral             |
+| `` `SLOT_CONNECT`` | `` `SLOT_CONNECT(N, MODULE #(.P(V)), INST))``   | Wire slot N to a peripheral (close with `));`)  |
+| `` `EXT_CONNECT``  | `` `EXT_CONNECT(MODULE #(.P(V)), INST))``       | Wire extended tier to a peripheral             |
 | `` `PWB_SLOT_PORTS``| (in port list)                                 | Connect all slot wires to `pwb_wb_system`      |
 | `` `PWB_EXT_PORTS``| (in port list)                                  | Connect extended tier wires to `pwb_wb_system` |
 
+Both `SLOT_CONNECT` and `EXT_CONNECT` leave the module port list **open** — the caller closes with `);`. This lets you add extra I/O ports for peripherals that have them.
+
 **`SLOT_CONNECT` usage:**
 ```verilog
-// Wire a register block to slot 0
-`SLOT_CONNECT(0, wb_register_block #(.ADDR_WIDTH(4), .DATA_WIDTH(8)), slot0_reg);
+// Simple peripheral — close immediately
+`SLOT_CONNECT(0, wb_register_block #(.ADDR_WIDTH(4), .DATA_WIDTH(8)), slot0_reg));
 
-// Wire an RGB LED to slot 1; then connect its extra output
-`SLOT_CONNECT(1, wb_rgb_led, slot1_led);
-assign rgb_data = slot1_led_extra_output;
+// Peripheral with extra I/O — add ports before closing
+`SLOT_CONNECT(1, wb_simple_rgb_led, slot1_led),
+    .led_out(rgb_data)
+);
 
 // Swap a peripheral: just change the module name, instance name
-// `SLOT_CONNECT(2, wb_old_device, slot2_x);   <-- was this
-`SLOT_CONNECT(2, wb_new_device, slot2_x);
+`SLOT_CONNECT(2, wb_new_device, slot2_x));
 ```
 
 **`EXT_CONNECT` usage (one peripheral only):**
 ```verilog
-// Wire BRAM to extended tier (addresses 0x2000+)
-`EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram);
+// Simple — no extra ports
+`EXT_CONNECT(wb_bram #(.ADDR_WIDTH(10), .DATA_WIDTH(32)), ext_bram));
+
+// With extra I/O
+`EXT_CONNECT(my_sdram_ctrl, ext_sdram),
+    .sdram_clk(sdram_clk),
+    .sdram_dq(sdram_dq)
+);
 // Also add ,`PWB_EXT_PORTS to the pwb_wb_system port list
 ```
 
