@@ -8,12 +8,32 @@
 //   Option B (advanced):  Define your own reset generator (reg rst = ...)
 //
 // This file provides:
-//   1. slot_* wires       - Flattened arrays for slot Wishbone interfaces
-//   2. ext_* wires        - Extended tier Wishbone interface wires
-//   3. SLOT_CONNECT macro - One-line slot peripheral wiring
-//   4. EXT_CONNECT macro  - One-line extended tier peripheral wiring
-//   5. PWB_SLOT_PORTS     - Slot port list macro for pwb_wb_system
-//   6. PWB_EXT_PORTS      - Extended tier port list macro for pwb_wb_system
+//   1. slot_* wires           - Flattened arrays for slot Wishbone interfaces
+//   2. ext_* wires            - Extended tier Wishbone interface wires
+//   3. SLOT_CONNECT macro     - One-line slot peripheral wiring
+//   4. EXT_CONNECT macro      - One-line single extended-tier peripheral (no router)
+//   5. EXT_SLOT_CONNECT macro - One-line multi-slot extended-tier peripheral wiring
+//   6. PWB_SLOT_PORTS         - Slot port list macro for pwb_wb_system
+//   7. PWB_EXT_PORTS          - Extended tier port list macro for pwb_wb_system
+//
+// Optional: Multi-Slot Extended Tier Router
+//   To enable multiple peripherals on the extended tier (0x2000-0xFFFF):
+//
+//     `define    NUM_EXT_SLOTS            // enables ifdef block in this file
+//     localparam NUM_EXT_SLOTS = 2;       // number of ext slots (passed to router)
+//     localparam [NUM_EXT_SLOTS*16-1:0] EXT_BASE_ADDRS = {16'hB000, 16'h2000};
+//     localparam [NUM_EXT_SLOTS*16-1:0] EXT_SIZES      = {16'h1000, 16'h9000};
+//     wire rst;
+//     `include "pwb_bus_wires.vh"        // auto-instantiates pwb_wb_ext_router
+//
+//   Then wire peripherals with EXT_SLOT_CONNECT:
+//     `EXT_SLOT_CONNECT(0, my_module #(.PARAM(val)), u_my_inst));
+//     `EXT_SLOT_CONNECT(1, other_module, u_other),
+//         .extra_port(wire_name)
+//     );
+//
+//   Note: `define only gates the ifdef; localparam provides the numeric value.
+//   Both must be set before the `include. PWB_EXT_PORTS is unchanged.
 
 // =========================================================================
 // Slot Wishbone interface wires (flattened arrays)
@@ -74,13 +94,14 @@ wire        ext_stb;
 wire        ext_ack;
 
 // =========================================================================
-// EXT_CONNECT Macro - One-line extended tier peripheral wiring
+// EXT_CONNECT Macro - One-line extended tier peripheral wiring (single device)
 // =========================================================================
 // Usage: `EXT_CONNECT(module_with_params, instance_name)
 //
 // Wires clk, rst, and all 8 standard Wishbone signals between the
 // extended tier port and a peripheral module.
-// Only one peripheral can be connected to the extended tier.
+// Only one peripheral can be connected to the extended tier (no router).
+// For multiple peripherals, use NUM_EXT_SLOTS + EXT_SLOT_CONNECT instead.
 //
 // The macro leaves the port list OPEN — the caller closes with );
 //
@@ -104,6 +125,86 @@ wire        ext_ack;
         .wb_cyc_i(ext_cyc), \
         .wb_stb_i(ext_stb), \
         .wb_ack_o(ext_ack)
+
+// =========================================================================
+// Optional: Multi-Slot Extended Tier Router (conditional on `define NUM_EXT_SLOTS)
+// =========================================================================
+// When the user defines `define NUM_EXT_SLOTS before including this file,
+// this block declares the ext_slot_* flattened wire arrays and auto-instantiates
+// pwb_wb_ext_router, wired to the ext_* master side and ext_slot_* slave side.
+// The user-defined localparams NUM_EXT_SLOTS, EXT_BASE_ADDRS, EXT_SIZES are
+// passed as parameters.
+`ifdef NUM_EXT_SLOTS
+wire [NUM_EXT_SLOTS*16-1:0] ext_slot_adr;
+wire [NUM_EXT_SLOTS*32-1:0] ext_slot_dat_m2s;
+wire [NUM_EXT_SLOTS*32-1:0] ext_slot_dat_s2m;
+wire [NUM_EXT_SLOTS*4-1:0]  ext_slot_sel;
+wire [NUM_EXT_SLOTS-1:0]    ext_slot_we;
+wire [NUM_EXT_SLOTS-1:0]    ext_slot_cyc;
+wire [NUM_EXT_SLOTS-1:0]    ext_slot_stb;
+wire [NUM_EXT_SLOTS-1:0]    ext_slot_ack;
+
+pwb_wb_ext_router #(
+    .NUM_EXT_SLOTS (NUM_EXT_SLOTS),
+    .BASE_ADDRS    (EXT_BASE_ADDRS),
+    .SIZES         (EXT_SIZES)
+) u_pwb_ext_router (
+    .clk          (clk),
+    .rst          (rst),
+    .wb_adr_i     (ext_adr),
+    .wb_dat_i     (ext_dat_m2s),
+    .wb_dat_o     (ext_dat_s2m),
+    .wb_sel_i     (ext_sel),
+    .wb_we_i      (ext_we),
+    .wb_cyc_i     (ext_cyc),
+    .wb_stb_i     (ext_stb),
+    .wb_ack_o     (ext_ack),
+    .slot_adr_o   (ext_slot_adr),
+    .slot_dat_o   (ext_slot_dat_m2s),
+    .slot_dat_i   (ext_slot_dat_s2m),
+    .slot_sel_o   (ext_slot_sel),
+    .slot_we_o    (ext_slot_we),
+    .slot_cyc_o   (ext_slot_cyc),
+    .slot_stb_o   (ext_slot_stb),
+    .slot_ack_i   (ext_slot_ack)
+);
+`endif
+
+// =========================================================================
+// EXT_SLOT_CONNECT Macro - One-line ext-router slot peripheral wiring
+// =========================================================================
+// Usage: `EXT_SLOT_CONNECT(slot_number, module_with_params, instance_name)
+//
+// Requires: `define NUM_EXT_SLOTS + EXT_BASE_ADDRS + EXT_SIZES before
+//           `include "pwb_bus_wires.vh" so the router is auto-instantiated.
+//
+// Wires clk, rst, and all 8 Wishbone signals from the router's flattened
+// ext_slot_* arrays to slot N's peripheral module.
+//
+// The macro leaves the port list OPEN — the caller closes with );
+// This allows extra I/O ports to be added before closing.
+//
+// Simple peripheral (no extra ports):
+//   `EXT_SLOT_CONNECT(1, papilio_wishbone_bram #(.ADDR_WIDTH(10)), u_bram));
+//
+// Peripheral with extra I/O:
+//   `EXT_SLOT_CONNECT(0, papilio_hdmi_wb #(.BASE_ADDR(16'h2000)), u_hdmi),
+//       .O_tmds_clk_p(O_tmds_clk_p),
+//       .O_tmds_clk_n(O_tmds_clk_n)
+//   );
+//
+`define EXT_SLOT_CONNECT(N, MODULE, INST) \
+    MODULE INST ( \
+        .clk(clk), \
+        .rst(rst), \
+        .wb_adr_i(ext_slot_adr[(N)*16 +: 16]), \
+        .wb_dat_i(ext_slot_dat_m2s[(N)*32 +: 32]), \
+        .wb_dat_o(ext_slot_dat_s2m[(N)*32 +: 32]), \
+        .wb_sel_i(ext_slot_sel[(N)*4 +: 4]), \
+        .wb_we_i(ext_slot_we[(N)]), \
+        .wb_cyc_i(ext_slot_cyc[(N)]), \
+        .wb_stb_i(ext_slot_stb[(N)]), \
+        .wb_ack_o(ext_slot_ack[(N)])
 
 // =========================================================================
 // PWB_SLOT_PORTS Macro - System module port wiring

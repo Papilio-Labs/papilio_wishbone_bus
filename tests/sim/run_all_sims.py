@@ -52,14 +52,13 @@ def run_testbench(testbench, oss_cad_path):
             str(wb_reg_dir / "wb_register_block.v"),
             str(spi_slave_dir / "fifo_sync.v")  # Required by pwb_spi_wb_bridge
         ])
-    elif "spi_wb_register" in testbench:
-        sources.extend([
-            str(gateware_dir / "simple_spi_wb_bridge.v"),
-            str(wb_reg_dir / "wb_register_block.v")
-        ])
     elif "pwb_wb_interconnect" in testbench:
         sources.extend([
             str(gateware_dir / "pwb_wb_interconnect.v"),
+        ])
+    elif "pwb_wb_ext_router" in testbench:
+        sources.extend([
+            str(gateware_dir / "pwb_wb_ext_router.v"),
         ])
     
     # Compile

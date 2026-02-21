@@ -95,7 +95,48 @@ Decodes the 24-bit Wishbone address and routes transactions to the correct tier.
 
 **Expanding slot count:** Change `NUM_SLOTS` parameter only — the slot wiring is fully generated (`genvar` loop). Also update the ESP32 firmware constant `PWB_NUM_SLOTS` to match.
 
-**Extended tier — single port, no sub-decode:** The extended tier (`0x2000–0xFFFF`) routes to a single `ext_*` port. Any sub-addressing within that range is the responsibility of the connected slave (e.g., a BRAM with its own address decoder).
+**Extended tier — single port, no sub-decode:** The extended tier (`0x2000–0xFFFF`) routes to a single `ext_*` port. For a single slave use `EXT_CONNECT`. For multiple slaves use `pwb_wb_ext_router` via the `NUM_EXT_SLOTS` + `EXT_SLOT_CONNECT` pattern.
+
+---
+
+### `pwb_wb_ext_router.v` — Extended Tier Router
+
+Routes Wishbone transactions within the extended address space (0x2000– 0xFFFF) to one of **N sub-peripherals** based on programmed `BASE_ADDRS` and `SIZES`.
+
+**Parameters:**
+
+| Parameter       | Default         | Description                                                  |
+|-----------------|-----------------|--------------------------------------------------------------|
+| `NUM_EXT_SLOTS` | `4`             | Number of extended-tier sub-slots (max 16)                   |
+| `BASE_ADDRS`    | see below       | Flattened 16-bit base address per slot; slot 0 at bits [15:0]|
+| `SIZES`         | see below       | Flattened 16-bit range size per slot; slot 0 at bits [15:0]  |
+
+**Address decode:**
+- Slot N matches when `wb_adr_i >= BASE_ADDRS[N*16+:16]` AND `wb_adr_i < BASE_ADDRS[N*16+:16] + SIZES[N*16+:16]`
+- Lowest slot index wins when ranges overlap (slot 0 = highest priority)
+- Raw address passed to each slot (no BASE subtraction — peripheral handles it)
+- Unmatched address returns `ACK=1, dat_o=32'hDEADBEEF`
+
+**Auto-instantiated via `pwb_bus_wires.vh`** when `` `define NUM_EXT_SLOTS `` is set — users do not instantiate this module directly. See `pwb_bus_wires.vh` docs below.
+
+**Direct instantiation (advanced):**
+```verilog
+pwb_wb_ext_router #(
+    .NUM_EXT_SLOTS (2),
+    .BASE_ADDRS    ({16'hB000, 16'h2000}),   // slot 1 at [31:16], slot 0 at [15:0]
+    .SIZES         ({16'h1000, 16'h9000})
+) u_ext_router (
+    .clk(clk), .rst(rst),
+    .wb_adr_i(ext_adr),     .wb_dat_i(ext_dat_m2s),
+    .wb_dat_o(ext_dat_s2m), .wb_sel_i(ext_sel),
+    .wb_we_i(ext_we),       .wb_cyc_i(ext_cyc),
+    .wb_stb_i(ext_stb),     .wb_ack_o(ext_ack),
+    .slot_adr_o(ext_slot_adr),   .slot_dat_o(ext_slot_dat_m2s),
+    .slot_dat_i(ext_slot_dat_s2m), .slot_sel_o(ext_slot_sel),
+    .slot_we_o(ext_slot_we), .slot_cyc_o(ext_slot_cyc),
+    .slot_stb_o(ext_slot_stb), .slot_ack_i(ext_slot_ack)
+);
+```
 
 ---
 
@@ -113,12 +154,13 @@ wire rst;               // driven by pwb_wb_system.rst_o (or your own generator)
 
 **Macros:**
 
-| Macro              | Usage                                           | Description                                    |
-|--------------------|-------------------------------------------------|------------------------------------------------|
-| `` `SLOT_CONNECT`` | `` `SLOT_CONNECT(N, MODULE #(.P(V)), INST))``   | Wire slot N to a peripheral (close with `));`)  |
-| `` `EXT_CONNECT``  | `` `EXT_CONNECT(MODULE #(.P(V)), INST))``       | Wire extended tier to a peripheral             |
-| `` `PWB_SLOT_PORTS``| (in port list)                                 | Connect all slot wires to `pwb_wb_system`      |
-| `` `PWB_EXT_PORTS``| (in port list)                                  | Connect extended tier wires to `pwb_wb_system` |
+| Macro                  | Usage                                                | Description                                              |
+|------------------------|------------------------------------------------------|----------------------------------------------------------|
+| `` `SLOT_CONNECT``     | `` `SLOT_CONNECT(N, MODULE #(.P(V)), INST))``         | Wire slot N to a peripheral (close with `));`)           |
+| `` `EXT_CONNECT``      | `` `EXT_CONNECT(MODULE #(.P(V)), INST))``            | Wire extended tier to single peripheral (no router)      |
+| `` `EXT_SLOT_CONNECT`` | `` `EXT_SLOT_CONNECT(N, MODULE #(.P(V)), INST))``    | Wire ext router slot N to a peripheral (requires router) |
+| `` `PWB_SLOT_PORTS``   | (in port list)                                       | Connect all slot wires to `pwb_wb_system`                |
+| `` `PWB_EXT_PORTS``    | (in port list)                                       | Connect extended tier wires to `pwb_wb_system`           |
 
 Both `SLOT_CONNECT` and `EXT_CONNECT` leave the module port list **open** — the caller closes with `);`. This lets you add extra I/O ports for peripherals that have them.
 
@@ -134,6 +176,24 @@ Both `SLOT_CONNECT` and `EXT_CONNECT` leave the module port list **open** — th
 
 // Swap a peripheral: just change the module name, instance name
 `SLOT_CONNECT(2, wb_new_device, slot2_x));
+```
+
+**`EXT_SLOT_CONNECT` usage (multi-slot router) — add `define NUM_EXT_SLOTS` first:**
+```verilog
+// BEFORE `include pwb_bus_wires.vh:
+`define    NUM_EXT_SLOTS
+localparam NUM_EXT_SLOTS = 2;
+localparam [NUM_EXT_SLOTS*16-1:0] EXT_BASE_ADDRS = {16'hB000, 16'h2000};
+localparam [NUM_EXT_SLOTS*16-1:0] EXT_SIZES      = {16'h1000, 16'h9000};
+// `include "pwb_bus_wires.vh" auto-instantiates the router
+
+// Then wire each sub-peripheral:
+`EXT_SLOT_CONNECT(0, papilio_hdmi_wb #(.BASE_ADDR(16'h2000)), u_hdmi),
+    .O_tmds_clk_p(O_tmds_clk_p)
+);
+`EXT_SLOT_CONNECT(1, wb_bram #(.ADDR_WIDTH(10)), u_bram));
+
+// PWB_EXT_PORTS in pwb_wb_system is UNCHANGED
 ```
 
 **`EXT_CONNECT` usage (one peripheral only):**
@@ -184,4 +244,5 @@ Build using the Gowin vendor flow (Gowin IDE or `gw_sh.exe build.tcl`). Include:
 - `pwb_wb_interconnect.v`
 - `pwb_spi_wb_bridge.v`
 - `pwb_bus_wires.vh`
+- `pwb_wb_ext_router.v` (include when using multi-slot extended tier)
 - `libs/papilio_spi_slave/gateware/spi_slave.v` (from its library location — do not copy)
