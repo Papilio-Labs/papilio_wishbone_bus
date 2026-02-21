@@ -33,10 +33,10 @@ module tb_pwb_multi_width;
     wire        wb_stb;
     wire        wb_ack;
 
-    // Individual slave outputs (directly exposed, no mux for simplicity)
-    wire [7:0]  wb_dat_8;
-    wire [15:0] wb_dat_16;
-    wire [23:0] wb_dat_24;
+    // Individual slave outputs (32-bit bus; wb_register_block zero-extends)
+    wire [31:0] wb_dat_8;
+    wire [31:0] wb_dat_16;
+    wire [31:0] wb_dat_24;
     wire [31:0] wb_dat_32;
     wire        wb_ack_8, wb_ack_16, wb_ack_24, wb_ack_32;
 
@@ -52,9 +52,9 @@ module tb_pwb_multi_width;
 
     // Mux ACK and data back to bridge
     assign wb_ack = (sel_8 & wb_ack_8) | (sel_16 & wb_ack_16) | (sel_24 & wb_ack_24) | (sel_32 & wb_ack_32);
-    assign wb_dat_s2m = sel_8  ? {24'b0, wb_dat_8} :
-                        sel_16 ? {16'b0, wb_dat_16} :
-                        sel_24 ? {8'b0, wb_dat_24} :
+    assign wb_dat_s2m = sel_8  ? wb_dat_8 :
+                        sel_16 ? wb_dat_16 :
+                        sel_24 ? wb_dat_24 :
                         sel_32 ? wb_dat_32 :
                         32'hDEADBEEF;
 
@@ -99,8 +99,9 @@ module tb_pwb_multi_width;
         .clk(clk),
         .rst(rst),
         .wb_adr_i(wb_adr[3:0]),
-        .wb_dat_i(wb_dat_m2s[7:0]),
+        .wb_dat_i(wb_dat_m2s),
         .wb_dat_o(wb_dat_8),
+        .wb_sel_i(wb_sel),
         .wb_we_i(wb_we),
         .wb_cyc_i(wb_cyc & sel_8),
         .wb_stb_i(wb_stb & sel_8),
@@ -116,8 +117,9 @@ module tb_pwb_multi_width;
         .clk(clk),
         .rst(rst),
         .wb_adr_i(wb_adr[3:0]),
-        .wb_dat_i(wb_dat_m2s[15:0]),
+        .wb_dat_i(wb_dat_m2s),
         .wb_dat_o(wb_dat_16),
+        .wb_sel_i(wb_sel),
         .wb_we_i(wb_we),
         .wb_cyc_i(wb_cyc & sel_16),
         .wb_stb_i(wb_stb & sel_16),
@@ -133,8 +135,9 @@ module tb_pwb_multi_width;
         .clk(clk),
         .rst(rst),
         .wb_adr_i(wb_adr[3:0]),
-        .wb_dat_i(wb_dat_m2s[23:0]),
+        .wb_dat_i(wb_dat_m2s),
         .wb_dat_o(wb_dat_24),
+        .wb_sel_i(wb_sel),
         .wb_we_i(wb_we),
         .wb_cyc_i(wb_cyc & sel_24),
         .wb_stb_i(wb_stb & sel_24),
@@ -150,8 +153,9 @@ module tb_pwb_multi_width;
         .clk(clk),
         .rst(rst),
         .wb_adr_i(wb_adr[3:0]),
-        .wb_dat_i(wb_dat_m2s[31:0]),
+        .wb_dat_i(wb_dat_m2s),
         .wb_dat_o(wb_dat_32),
+        .wb_sel_i(wb_sel),
         .wb_we_i(wb_we),
         .wb_cyc_i(wb_cyc & sel_32),
         .wb_stb_i(wb_stb & sel_32),
