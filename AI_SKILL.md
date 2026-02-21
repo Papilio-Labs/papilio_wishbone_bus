@@ -54,7 +54,16 @@ The slot tier covers `0x0000–0x1FFF`. Each slot gets 256 bytes.
 | …    | …                   | …                            |
 | N    | `N×0x100–N×0x100+0xFF` | `PWB_SLOTN_BASE = N*0x100` |
 
-Extended tier: `0x2000–0xFFFF` (single slave, e.g., BRAM at `0x2000`).
+## Address Map (Extended Tier)
+
+The extended tier covers `0x2000–0xFFFF`. Default: single slave via `ext_*` port (use `EXT_CONNECT`). With `pwb_wb_ext_router`: up to 16 sub-slots, each with configurable base + size.
+
+**Dev project extended slot map (`top.v`):**
+
+| Ext Slot | Address Range     | Size    | Peripheral           |
+|----------|-------------------|---------|----------------------|
+| 0        | `0x2000–0xAFFF`  | ~36 KB  | `papilio_hdmi_wb`    |
+| 1        | `0xB000–0xBFFF`  | 4 KB    | `wb_bram`            |
 
 Large tier: `0x010000–0xFFFFFF` — **stubbed**, returns `0xDEADBEEF` (Phase 3, not yet implemented).
 
@@ -63,17 +72,33 @@ Large tier: `0x010000–0xFFFFFF` — **stubbed**, returns `0xDEADBEEF` (Phase 3
 ### pwb_wb_system.v
 High-level system wrapper — **recommended for end users**. Encapsulates reset generator, SPI bridge, and interconnect. Parameters: `NUM_SLOTS` (default 8). Exposes slot and extended tier ports; use with `pwb_bus_wires.vh` macros.
 
+### pwb_wb_ext_router.v
+Optional extended-tier router. Auto-instantiated by `pwb_bus_wires.vh` when `` `define NUM_EXT_SLOTS `` is set. Routes ext master bus to one of N sub-slots based on BASE_ADDRS/SIZES flattened vectors. Priority-first (slot 0 wins on overlap). Unmatched returns `0xDEADBEEF`. Passes raw address to peripheral (no subtraction). See gateware/README.md for parameter and usage details.
+
 ### pwb_wb_interconnect.v
 Three-tier address decoder/router. Use directly for advanced integrations. Slot tier active (0x00_0000–0x00_1FFF), extended tier active (0x00_2000–0x00_FFFF), large tier stubbed. Address bits `[12:8]` select the slot.
 
 ### pwb_bus_wires.vh
-Include file that declares all slot/extended wire arrays and four macros:
+Include file that declares all slot/extended wire arrays and macros:
 - `` `SLOT_CONNECT(N, MODULE, INST)`` — wire slot N to peripheral
-- `` `EXT_CONNECT(MODULE, INST)`` — wire extended tier to peripheral (one slave only)
+- `` `EXT_CONNECT(MODULE, INST)`` — wire extended tier to single peripheral (no router)
+- `` `EXT_SLOT_CONNECT(N, MODULE, INST)`` — wire ext router slot N to peripheral (requires `define NUM_EXT_SLOTS)
 - `` `PWB_SLOT_PORTS`` — port list for `pwb_wb_system` slot connections
-- `` `PWB_EXT_PORTS`` — port list for `pwb_wb_system` extended tier connection
+- `` `PWB_EXT_PORTS`` — port list for `pwb_wb_system` extended tier connection (unchanged when using router)
 
-**Expanding NUM_SLOTS:** Change `localparam NUM_SLOTS` in `top.v` and update the matching ESP32 firmware constant. No other wiring changes needed — the interconnect generate loop adapts automatically.
+**Multi-slot router pattern:**
+```verilog
+`define    NUM_EXT_SLOTS
+localparam NUM_EXT_SLOTS = 2;
+localparam [NUM_EXT_SLOTS*16-1:0] EXT_BASE_ADDRS = {16'hB000, 16'h2000};
+localparam [NUM_EXT_SLOTS*16-1:0] EXT_SIZES      = {16'h1000, 16'h9000};
+wire rst;
+`include "pwb_bus_wires.vh"   // auto-instantiates pwb_wb_ext_router
+
+// Then use EXT_SLOT_CONNECT for each sub-peripheral
+`EXT_SLOT_CONNECT(0, my_hdmi #(.BASE_ADDR(16'h2000)), u_hdmi));
+`EXT_SLOT_CONNECT(1, wb_bram #(.ADDR_WIDTH(10)), u_bram));
+```
 
 ### pwb_spi_wb_bridge.v
 Multi-width SPI-to-Wishbone bridge with FIFO buffering for burst transfers.

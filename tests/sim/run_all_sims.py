@@ -61,6 +61,10 @@ def run_testbench(testbench, oss_cad_path):
         sources.extend([
             str(gateware_dir / "pwb_wb_interconnect.v"),
         ])
+    elif "pwb_wb_ext_router" in testbench:
+        sources.extend([
+            str(gateware_dir / "pwb_wb_ext_router.v"),
+        ])
     
     # Compile
     output = testbench.replace('.v', '.vvp')
