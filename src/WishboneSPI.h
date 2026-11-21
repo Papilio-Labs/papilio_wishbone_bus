@@ -4,6 +4,16 @@
 #include <Arduino.h>
 #include <PapilioSPI.h>
 
+// Convert a standard slot (0-31) to its byte address. On failure, baseAddress
+// is unchanged. Slot 0 is reserved for the system peripheral.
+inline bool wishboneSlotBaseAddress(int slot, uint16_t& baseAddress) {
+    if (slot < 0 || slot >= 32) {
+        return false;
+    }
+    baseAddress = static_cast<uint16_t>(slot * 0x100);
+    return true;
+}
+
 // Initialize the Wishbone SPI helper with a PapilioSPI-compatible SPIClass instance and CS pin
 // This waits for the FPGA bootloader to complete before returning
 void wishboneInit(SPIClass* spi, int cs_pin);

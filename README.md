@@ -100,6 +100,11 @@ COUNT specifies the number of words (1-65535).
 
 ## Usage
 
+Use `wishboneSlotBaseAddress(slot, baseAddress)` to convert a standard slot to
+a byte address without duplicating the address calculation. It returns `false`
+and leaves `baseAddress` unchanged if the slot is outside 0–31. Slot 0 is
+reserved for system use. Raw addresses remain available for extended-tier devices.
+
 ```cpp
 #include "WishboneSPI.h"
 
