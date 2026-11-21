@@ -12,7 +12,7 @@ This library provides a multi-width SPI-based master for talking to an FPGA-side
 - `src/WishboneSPI.h` — Public header with API and protocol constants.
 - `src/WishboneSPI.cpp` — PapilioSPI-based implementation (SPI Mode 1, MSB-first, <=4 MHz).
 - `gateware/pwb_spi_wb_bridge.v` — Multi-width SPI-to-Wishbone bridge with FIFO buffering (requires fifo_sync.v).
-- `gateware/simple_spi_wb_bridge.v` — Legacy 8-bit only bridge (deprecated).
+- [`examples/legacy/simple_spi_wb_bridge.v`](examples/legacy/simple_spi_wb_bridge.v) — Deprecated 8-bit bridge, available for manual builds only. Use `pwb_spi_wb_bridge` for new designs.
 - `gateware/wb_address_decoder*.v` — Wishbone address fanout helpers.
 - `tests/sim/` — Simulation testbenches with VCD for multi-width bridge testing.
 - `tests/hw/` — ESP32 hardware regression tests.

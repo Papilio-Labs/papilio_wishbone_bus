@@ -176,7 +176,7 @@ Parameterized Wishbone register block for testing.
 - Synchronous reset clears all registers to RESET_VALUE
 
 ### Legacy Modules (deprecated)
-- `simple_spi_wb_bridge.v`: 8-bit only bridge (use `pwb_spi_wb_bridge` instead)
+- `examples/legacy/simple_spi_wb_bridge.v`: 8-bit only bridge, excluded from automatic gateware discovery (use `pwb_spi_wb_bridge` instead)
 - `wb_address_decoder*.v`: Flat address decoders (superseded by `pwb_wb_interconnect`)
 
 ## Firmware API

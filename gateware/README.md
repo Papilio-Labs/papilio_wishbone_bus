@@ -231,6 +231,7 @@ See the main library `AI_SKILL.md` for full protocol and port documentation.
 
 ### Legacy Modules (deprecated)
 
+- [`simple_spi_wb_bridge.v`](../examples/legacy/simple_spi_wb_bridge.v) — 8-bit bridge kept outside `gateware/` to avoid colliding with the SPI library's module of the same name. Legacy projects that need the Wishbone copy must include it explicitly instead of the SPI copy.
 - `simple_spi_wb_bridge_debug.v` — 8-bit only bridge with UART debug output
 - `wb_address_decoder.v` — Flat address decoder (superseded by interconnect)
 - `uart_tx.v` — Minimal UART transmitter (used by legacy bridge)
